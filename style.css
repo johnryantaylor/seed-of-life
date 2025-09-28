@@ -152,7 +152,7 @@ button:hover {
 #startBtn {
   position: fixed;
   left: 50%;
-  top: calc(50% + 120px);
+  top: calc(50% + 40px);
   transform: translate(-50%, -50%) scale(1);
   transform-origin: center;
   width: 240px;
@@ -164,6 +164,7 @@ button:hover {
   cursor: pointer;
   pointer-events: auto;
   filter: none;
+  z-index: 1000;
 }
 
 #startBtn svg { display: none; }
