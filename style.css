@@ -59,13 +59,13 @@ canvas#game {
 }
 
 #winBanner .title {
-  font-size: clamp(24px, 7vmin, 64px);
+  font-size: clamp(18px, 6vh, 40px);
   letter-spacing: 1px;
 }
 
 #winBanner .subtitle {
   margin-top: 10px;
-  font-size: clamp(16px, 5vmin, 48px);
+  font-size: clamp(14px, 4vh, 28px);
 }
 
 #controls {
