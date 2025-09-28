@@ -1,0 +1,10 @@
+{
+  "name": "Seed of Life",
+  "short_name": "SeedOfLife",
+  "display": "fullscreen",
+  "start_url": ".",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "landscape"
+}
+

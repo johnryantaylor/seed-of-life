@@ -10,6 +10,7 @@ body {
   align-items: center;
   justify-content: center;
   font-family: 'Press Start 2P', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  overflow: hidden;
 }
 
 canvas#game {
@@ -17,6 +18,8 @@ canvas#game {
   image-rendering: crisp-edges;
   background: #000;
   touch-action: manipulation;
+  width: 100dvw;
+  height: 100dvh;
 }
 
 #hud {
@@ -183,6 +186,29 @@ button:hover {
   0% { filter: drop-shadow(0 0 6px #2bb34f) drop-shadow(0 0 12px #2bb34f); }
   50% { filter: drop-shadow(0 0 10px #3cd865) drop-shadow(0 0 20px #3cd865) drop-shadow(0 0 26px #3cd865); }
   100% { filter: drop-shadow(0 0 6px #2bb34f) drop-shadow(0 0 12px #2bb34f); }
+}
+
+
+/* Orientation overlay shown on portrait mobile */
+#orientationOverlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #000;
+  color: #fff;
+  text-align: center;
+  z-index: 9999;
+}
+
+#orientationOverlay .msg {
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 

@@ -7,6 +7,11 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
 ctx.imageSmoothingEnabled = false;
 
+// Camera/view
+let viewScale = 1;
+let viewOffsetX = 0;
+let viewOffsetY = 0;
+
 // UI elements (created dynamically)
 const hud = document.createElement('div');
 hud.id = 'hud';
@@ -48,6 +53,39 @@ startBtn.addEventListener('click', () => {
   playBeep(420, 80, 'square', 0.02);
   restart();
 });
+
+// Orientation overlay (shown in portrait on mobile)
+const orientationOverlay = document.createElement('div');
+orientationOverlay.id = 'orientationOverlay';
+orientationOverlay.innerHTML = '<div class="msg">Please rotate your device to landscape\nfor the best experience.</div>';
+document.body.appendChild(orientationOverlay);
+
+function isPortrait() {
+  return window.innerHeight > window.innerWidth;
+}
+
+function isLikelyMobile() {
+  return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+function updateOrientationOverlay() {
+  const show = isLikelyMobile() && isPortrait();
+  orientationOverlay.style.display = show ? 'flex' : 'none';
+}
+
+async function attemptOrientationLock() {
+  try {
+    // Some browsers require fullscreen before locking orientation
+    if (document.fullscreenElement == null && document.documentElement.requestFullscreen) {
+      await document.documentElement.requestFullscreen();
+    }
+    if (screen.orientation && screen.orientation.lock) {
+      await screen.orientation.lock('landscape');
+    }
+  } catch (err) {
+    // Ignore; many browsers (esp. iOS Safari) don't allow programmatic lock
+  }
+}
 
 // Draw pixel-art rose leaf on start button canvas
 const startLeafCanvas = startBtn.querySelector('#startLeaf');
@@ -114,17 +152,26 @@ if (startLeafCanvas) {
   }
 }
 
-// Pixel-crisp scaling to fill window while preserving aspect ratio and integer scale
+// Fill the entire viewport; allow aspect ratio to adapt (may stretch)
 function resize() {
-  const scaleX = Math.floor(window.innerWidth / DESIGN_WIDTH);
-  const scaleY = Math.floor(window.innerHeight / DESIGN_HEIGHT);
-  const scale = Math.max(1, Math.min(scaleX, scaleY));
-  const displayWidth = DESIGN_WIDTH * scale;
-  const displayHeight = DESIGN_HEIGHT * scale;
-  canvas.style.width = displayWidth + 'px';
-  canvas.style.height = displayHeight + 'px';
+  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  const cssW = window.innerWidth;
+  const cssH = window.innerHeight;
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  canvas.width = Math.floor(cssW * dpr);
+  canvas.height = Math.floor(cssH * dpr);
+
+  // Compute uniform world scale and center offsets so circles stay 1:1
+  const scaleX = canvas.width / DESIGN_WIDTH;
+  const scaleY = canvas.height / DESIGN_HEIGHT;
+  viewScale = Math.min(scaleX, scaleY);
+  viewOffsetX = Math.floor((canvas.width - DESIGN_WIDTH * viewScale) / 2);
+  viewOffsetY = Math.floor((canvas.height - DESIGN_HEIGHT * viewScale) / 2);
+  updateOrientationOverlay();
 }
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', resize);
 resize();
 
 // RNG helper
@@ -324,25 +371,23 @@ function drawRockyPlanet(p) {
 
   // Atmospheric glow when terraforming progresses (tight to surface, bright, pulsing + strobing)
   if (terraform > 0.2 && p === PLANET_B) {
-    const tms = (state.timeMs || 0);
-    const pulseSlow = 0.5 + 0.5 * Math.sin(tms * 0.006);
-    const strobeFast = 0.5 + 0.5 * Math.sin(tms * 0.03);
-    const base = 0.28 + 0.18 * pulseSlow;
-    const a = base * (0.75 + 0.25 * strobeFast) * terraform;
+    const baseAlpha = 0.42 * terraform; // static brightness; brighter atmosphere
+    const haloWidth = 5;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const rings = [
-      { dr: 0.0, lw: 2, color: [150, 230, 255], alpha: a },
-      { dr: 1.0, lw: 3, color: [120, 210, 255], alpha: a * 0.7 },
-      { dr: 2.2, lw: 4, color: [90, 180, 255],  alpha: a * 0.45 },
-    ];
-    for (const ring of rings) {
-      ctx.filter = 'blur(1px)';
-      ctx.strokeStyle = `rgba(${ring.color[0]},${ring.color[1]},${ring.color[2]},${ring.alpha})`;
-      ctx.lineWidth = ring.lw;
-      ctx.beginPath();
-      ctx.arc(x, y, p.radius + ring.dr, 0, Math.PI * 2);
-      ctx.stroke();
+    const maxR = p.radius + haloWidth;
+    for (let dy = -maxR; dy <= maxR; dy++) {
+      for (let dx = -maxR; dx <= maxR; dx++) {
+        const r2 = dx*dx + dy*dy;
+        if (r2 <= p.radius * p.radius) continue;
+        const r = Math.sqrt(r2);
+        if (r > maxR) continue;
+        const w = (r - p.radius) / haloWidth; // 0 at surface -> 1 at edge
+        const a = baseAlpha * Math.max(0, 1 - w);
+        if (a <= 0.01) continue;
+        ctx.fillStyle = `rgba(140,210,255,${a})`;
+        ctx.fillRect(p.pos.x + dx, p.pos.y + dy, 1, 1);
+      }
     }
     ctx.restore();
   }
@@ -353,28 +398,31 @@ function drawSun(p) {
   const t = (state.timeMs || 0) / 1000;
   const pulse = 0.85 + 0.15 * Math.sin(t * 2.6);
   
-  // Draw halo BEHIND the sun: wide, bright, with falloff
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  const tms = (state.timeMs || 0);
-  const pulseSlow = 0.5 + 0.5 * Math.sin(tms * 0.006);
-  const strobeFast = 0.5 + 0.5 * Math.sin(tms * 0.03);
-  const baseA = (0.42 + 0.18 * pulseSlow) * (0.85 + 0.15 * strobeFast);
-  // Multiple strokes to create a 3x wider glow with gradual opacity falloff
-  const layers = [
-    { dr: 0.0,  lw: 6,  a: baseA },
-    { dr: 2.0,  lw: 9,  a: baseA * 0.6 },
-    { dr: 4.5,  lw: 12, a: baseA * 0.35 },
-  ];
-  for (const layer of layers) {
-    ctx.filter = 'blur(1.6px)';
-    ctx.strokeStyle = `rgba(255, 205, 90, ${layer.a})`;
-    ctx.lineWidth = layer.lw;
-    ctx.beginPath();
-    ctx.arc(x, y, p.radius + layer.dr, 0, Math.PI * 2);
-    ctx.stroke();
+  // Draw pixel halo behind the sun with smooth falloff (7px width)
+  {
+    const tms = (state.timeMs || 0);
+    const pulseSlow = 0.5 + 0.5 * Math.sin(tms * 0.006);
+    const strobeFast = 0.5 + 0.5 * Math.sin(tms * 0.03);
+    const baseA = (0.26 + 0.14 * pulseSlow) * (0.85 + 0.15 * strobeFast);
+    const haloWidth = 7;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const maxR = p.radius + haloWidth;
+    for (let dy = -maxR; dy <= maxR; dy++) {
+      for (let dx = -maxR; dx <= maxR; dx++) {
+        const r2 = dx*dx + dy*dy;
+        if (r2 <= p.radius * p.radius) continue;
+        const r = Math.sqrt(r2);
+        if (r > maxR) continue;
+        const w = (r - p.radius) / haloWidth; // 0 at surface -> 1 at edge
+        const a = baseA * Math.max(0, 1 - w);
+        if (a <= 0.01) continue;
+        ctx.fillStyle = `rgba(255,205,90,${a})`;
+        ctx.fillRect(x + dx, y + dy, 1, 1);
+      }
+    }
+    ctx.restore();
   }
-  ctx.restore();
 
   // Draw the sun body on top of the halo so the inner edge is crisp
   for (let dy = -p.radius; dy <= p.radius; dy++) {
@@ -443,6 +491,17 @@ function onThrust() {
 
 canvas.addEventListener('mousedown', (e) => { e.preventDefault(); onThrust(); });
 canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onThrust(); });
+
+// Try to lock orientation on first user interaction
+let triedLock = false;
+function onFirstUserGesture() {
+  if (triedLock) return;
+  triedLock = true;
+  attemptOrientationLock();
+}
+['click','touchstart','keydown'].forEach((evt) => {
+  window.addEventListener(evt, onFirstUserGesture, { once: true, passive: true });
+});
 
 // Physics integration (semi-implicit Euler)
 function applyGravity(body, dt) {
@@ -513,7 +572,10 @@ function restart() {
 
 // Rendering helpers
 function clear() {
-  ctx.drawImage(stars, 0, 0);
+  // Draw starfield stretched to fill entire canvas (changes viewable size)
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(stars, 0, 0, stars.width, stars.height, 0, 0, canvas.width, canvas.height);
 }
 
 function drawSeed() {
@@ -607,9 +669,14 @@ function frame(now) {
   }
 
   clear();
+  // World draw at uniform scale so circles remain circles
+  ctx.save();
+  ctx.setTransform(viewScale, 0, 0, viewScale, viewOffsetX, viewOffsetY);
+  ctx.imageSmoothingEnabled = false;
   drawPlanets();
   drawThrustTails();
   drawSeed();
+  ctx.restore();
   drawHUD();
 
   requestAnimationFrame(frame);
