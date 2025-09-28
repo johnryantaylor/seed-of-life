@@ -22,19 +22,7 @@ canvas#game {
   height: 100dvh;
 }
 
-#hud {
-  position: fixed;
-  left: 0;
-  right: 0;
-  top: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  color: #9cf;
-  font-size: clamp(10px, 1.8vmin, 14px);
-  pointer-events: none;
-}
+/* HUD removed */
 
 #banner {
   position: fixed;
@@ -165,6 +153,16 @@ button:hover {
   pointer-events: auto;
   filter: none;
   z-index: 1000;
+}
+#startHint {
+  position: fixed;
+  left: 50%;
+  top: calc(50% + 90px);
+  transform: translateX(-50%);
+  color: #9cf;
+  font-size: clamp(12px, 2vmin, 18px);
+  opacity: 0.85;
+  pointer-events: none;
 }
 
 #startBtn svg { display: none; }

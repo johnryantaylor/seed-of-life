@@ -13,10 +13,6 @@ let viewOffsetX = 0;
 let viewOffsetY = 0;
 
 // UI elements (created dynamically)
-const hud = document.createElement('div');
-hud.id = 'hud';
-hud.innerHTML = '<div id="hint">Click / Tap to thrust</div><div id="status"></div>';
-document.body.appendChild(hud);
 
 const banner = document.createElement('div');
 banner.id = 'banner';
@@ -53,6 +49,12 @@ startBtn.addEventListener('click', () => {
   playBeep(420, 80, 'square', 0.02);
   restart();
 });
+
+// Start hint (shown below Start button, hidden once game begins)
+const startHint = document.createElement('div');
+startHint.id = 'startHint';
+startHint.textContent = 'Click/tap to accelerate';
+document.body.appendChild(startHint);
 
 // Orientation overlay (shown in portrait on mobile)
 const orientationOverlay = document.createElement('div');
@@ -568,6 +570,7 @@ function restart() {
   actionBtn.style.display = 'none';
   startBtn.style.display = 'none';
   winBanner.style.display = 'none';
+  startHint.style.display = 'none';
 }
 
 // Rendering helpers
@@ -595,10 +598,7 @@ function drawPlanets() {
 }
 
 function drawHUD() {
-  const speed = Math.hypot(seed.vel.x, seed.vel.y);
-  const E = kineticEnergy(state.seedMass, seed.vel.x, seed.vel.y) + potentialEnergy(state.seedMass, seed.pos);
-  const statusEl = document.getElementById('status');
-  statusEl.textContent = `speed ${speed.toFixed(2)}  energy ${E.toFixed(1)}  thrust ${thrustCooldown > 0 ? 'cooldown' : 'ready'}`;
+  // HUD removed
 }
 
 function checkCollisions() {
@@ -677,7 +677,7 @@ function frame(now) {
   drawThrustTails();
   drawSeed();
   ctx.restore();
-  drawHUD();
+  // HUD removed
 
   requestAnimationFrame(frame);
 }
