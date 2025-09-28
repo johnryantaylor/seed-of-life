@@ -32,7 +32,7 @@ canvas#game {
   justify-content: space-between;
   padding: 6px 10px;
   color: #9cf;
-  font-size: 12px;
+  font-size: clamp(10px, 1.8vmin, 14px);
   pointer-events: none;
 }
 
@@ -42,7 +42,7 @@ canvas#game {
   top: 50%;
   transform: translate(-50%, -50%);
   color: #fff;
-  font-size: 16px;
+  font-size: clamp(12px, 2vmin, 20px);
   text-align: center;
   white-space: pre-line;
   pointer-events: none;
@@ -59,13 +59,13 @@ canvas#game {
 }
 
 #winBanner .title {
-  font-size: 56px;
+  font-size: clamp(24px, 7vmin, 64px);
   letter-spacing: 1px;
 }
 
 #winBanner .subtitle {
   margin-top: 10px;
-  font-size: 40px;
+  font-size: clamp(16px, 5vmin, 48px);
 }
 
 #controls {
@@ -80,9 +80,9 @@ button {
   background: #111;
   color: #9cf;
   border: 1px solid #234;
-  padding: 6px 10px;
+  padding: clamp(6px, 1.2vmin, 10px) clamp(8px, 1.6vmin, 14px);
   font-family: inherit;
-  font-size: 12px;
+  font-size: clamp(10px, 1.6vmin, 16px);
   cursor: pointer;
 }
 
@@ -99,8 +99,8 @@ button:hover {
   background: #1e8f3f;
   color: #fff;
   border-color: #2bb34f;
-  font-size: 18px;
-  padding: 12px 20px;
+  font-size: clamp(14px, 2.2vmin, 24px);
+  padding: clamp(10px, 1.4vmin, 16px) clamp(14px, 2.2vmin, 24px);
   box-shadow: 0 0 6px #2bb34f, 0 0 12px #2bb34f;
   animation: crt-glow 2.2s ease-in-out infinite;
   position: fixed;
@@ -155,8 +155,8 @@ button:hover {
   top: calc(50% + 40px);
   transform: translate(-50%, -50%) scale(1);
   transform-origin: center;
-  width: 240px;
-  height: 60px;
+  width: clamp(180px, 36vmin, 320px);
+  height: clamp(48px, 12vmin, 96px);
   background: #1e8f3f;
   color: #fff;
   border: 1px solid #2bb34f;
@@ -178,7 +178,7 @@ button:hover {
   text-align: center;
   width: 100%;
   color: #fff;
-  font-size: 28px;
+  font-size: clamp(18px, 3vmin, 32px);
   text-shadow: none;
   pointer-events: none;
 }
@@ -208,7 +208,7 @@ button:hover {
 }
 
 #orientationOverlay .msg {
-  font-size: 14px;
+  font-size: clamp(12px, 2vmin, 18px);
   line-height: 1.5;
 }
 
