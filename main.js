@@ -39,22 +39,26 @@ actionBtn.style.display = 'none';
 document.body.appendChild(actionBtn);
 actionBtn.addEventListener('click', () => restart());
 
-// Start button (leaf-shaped, center)
+// Start button (game pre-start)
 const startBtn = document.createElement('button');
 startBtn.id = 'startBtn';
 startBtn.innerHTML = `<span class="label">Start</span>`;
+startBtn.style.display = 'none';
 document.body.appendChild(startBtn);
 startBtn.addEventListener('click', () => {
   ensureAudio();
   playBeep(420, 80, 'square', 0.02);
   restart();
+  startBtn.style.display = 'none';
 });
 
-// Start hint (shown below Start button, hidden once game begins)
+// Start hint: show briefly on entering game, then auto-hide and start
 const startHint = document.createElement('div');
 startHint.id = 'startHint';
 startHint.textContent = 'Click/tap to accelerate';
 document.body.appendChild(startHint);
+startHint.style.display = 'none';
+// No auto-start: we will run a pre-start orbit animation first
 
 // Orientation overlay (shown in portrait on mobile)
 const orientationOverlay = document.createElement('div');
@@ -89,70 +93,7 @@ async function attemptOrientationLock() {
   }
 }
 
-// Draw pixel-art rose leaf on start button canvas
-const startLeafCanvas = startBtn.querySelector('#startLeaf');
-if (startLeafCanvas) {
-  const lc = startLeafCanvas.getContext('2d');
-  lc.imageSmoothingEnabled = false;
-  // Transparent background by default; draw a pixel leaf silhouette and fill
-  // Base silhouette (approximate rose leaf with serrated edge)
-  const w = startLeafCanvas.width;
-  const h = startLeafCanvas.height;
-  const cx = 110, cy = 60;
-  const rx = 90, ry = 42; // ellipse radii for body
-  // Draw body ellipse pixels
-  lc.fillStyle = '#2a7f3a';
-  for (let y = -ry; y <= ry; y++) {
-    const xr = Math.floor(rx * Math.sqrt(1 - (y*y)/(ry*ry)));
-    for (let x = -xr; x <= xr; x++) {
-      lc.fillRect(cx + x, cy + y, 1, 1);
-    }
-  }
-  // Add pointed tip on right by extending a triangle
-  lc.fillStyle = '#2a7f3a';
-  for (let i = 0; i < 24; i++) {
-    lc.fillRect(cx + rx + i, cy - Math.floor(i/3), 1, 1);
-    lc.fillRect(cx + rx + i, cy + Math.floor(i/3), 1, 1);
-  }
-  // Serrated edge (teeth)
-  lc.fillStyle = '#2f9142';
-  for (let t = -Math.PI*0.9; t <= Math.PI*0.9; t += 0.18) {
-    const rrx = rx * Math.cos(t);
-    const rry = ry * Math.sin(t);
-    const ex = Math.round(cx + rrx);
-    const ey = Math.round(cy + rry);
-    const nx = Math.cos(t);
-    const ny = Math.sin(t);
-    const tx = Math.round(ex + nx * 3);
-    const ty = Math.round(ey + ny * 3);
-    lc.fillRect(tx, ty, 1, 1);
-  }
-  // Center vein
-  lc.fillStyle = '#115a26';
-  for (let x = -rx - 10; x <= rx + 16; x++) {
-    lc.fillRect(cx + x, cy, 1, 1);
-  }
-  // Side veins
-  for (let v = -6; v <= 6; v++) {
-    const vy = v * 6;
-    for (let k = 0; k < 16; k++) {
-      lc.fillRect(cx - 10 + k, cy + Math.round(vy * 0.06 * k), 1, 1);
-      lc.fillRect(cx - 10 + k, cy - Math.round(vy * 0.06 * k), 1, 1);
-    }
-  }
-  // Color variation (veins lighter overlay)
-  lc.fillStyle = 'rgba(120, 200, 120, 0.25)';
-  for (let y = -ry; y <= ry; y += 3) {
-    for (let x = -rx; x <= rx; x += 3) {
-      lc.fillRect(cx + x, cy + y, 1, 1);
-    }
-  }
-  // Stem on left
-  lc.fillStyle = '#1b6e34';
-  for (let s = 0; s < 18; s++) {
-    lc.fillRect(cx - rx - 14 - s, cy - Math.floor(s/4), 2, 2);
-  }
-}
+// (removed) start button leaf canvas
 
 // Fill the entire viewport; allow aspect ratio to adapt (may stretch)
 function resize() {
@@ -178,6 +119,22 @@ resize();
 
 // RNG helper
 function randRange(min, max) { return Math.random() * (max - min) + min; }
+
+// Stable pseudo-random in [0,1) based on integer coords
+function hash01(ix, iy) {
+  let n = (ix * 374761393 + iy * 668265263) | 0;
+  n = (n ^ (n >>> 13)) | 0;
+  n = (n * 1274126177) | 0;
+  return ((n >>> 0) % 1000) / 1000;
+}
+
+// Compute centered square crop for an image so draw regions align across variants
+function getSquareCrop(img) {
+  const s = Math.min(img.width, img.height);
+  const sx = Math.floor((img.width - s) / 2);
+  const sy = Math.floor((img.height - s) / 2);
+  return { sx, sy, sw: s, sh: s };
+}
 
 // Audio (tiny retro)
 let audioCtx = null;
@@ -232,6 +189,49 @@ const stars = (() => {
   return off;
 })();
 
+// Optional uploaded planet image (drawn for PLANET_A if available)
+let planetImg = null;
+let planetImgReady = false;
+const planetImgCandidates = [
+  './assets/planet.png',
+  './assets/volcano-planet.png',
+  './assets/planet-volcano.png'
+];
+let planetImgIdx = 0;
+function tryLoadPlanetImage() {
+  if (planetImgIdx >= planetImgCandidates.length) return;
+  const src = planetImgCandidates[planetImgIdx++] + '?v=' + String(Date.now());
+  const img = new Image();
+  img.onload = () => { planetImg = img; planetImgReady = true; };
+  img.onerror = () => { planetImgReady = false; tryLoadPlanetImage(); };
+  img.src = src;
+}
+tryLoadPlanetImage();
+
+// Destination planet image (PLANET_B)
+let planetBImg = null;
+let planetBImgReady = false;
+function loadPlanetBImage() {
+  const src = './assets/planet-b.png?v=' + String(Date.now());
+  const img = new Image();
+  img.onload = () => { planetBImg = img; planetBImgReady = true; };
+  img.onerror = () => { planetBImgReady = false; };
+  img.src = src;
+}
+loadPlanetBImage();
+
+// Terraformed (green) destination image to reveal on win
+let planetBGreenImg = null;
+let planetBGreenReady = false;
+function loadPlanetBGreenImage() {
+  const src = './assets/planet-b-green.png?v=' + String(Date.now());
+  const img = new Image();
+  img.onload = () => { planetBGreenImg = img; planetBGreenReady = true; };
+  img.onerror = () => { planetBGreenReady = false; };
+  img.src = src;
+}
+loadPlanetBGreenImage();
+
 function drawPlanet(p) {
   if (p === PLANET_A) {
     drawSun(p);
@@ -243,207 +243,100 @@ function drawPlanet(p) {
 function drawRockyPlanet(p) {
   const { x, y } = p.pos;
   const terraform = p === PLANET_B ? getTerraformProgress() : 0;
-  // base rocky body
-  for (let dy = -p.radius; dy <= p.radius; dy++) {
-    for (let dx = -p.radius; dx <= p.radius; dx++) {
-      const rx = x + dx;
-      const ry = y + dy;
-      const r2 = dx*dx + dy*dy;
-      if (r2 <= p.radius * p.radius) {
-        const r = Math.sqrt(r2);
-        const q = r / p.radius;
-        const edge = Math.max(0, Math.min(1, (p.radius - r) / p.radius));
-        const base = [100, 110, 100];
-        const noise = Math.floor(randRange(-18, 18));
-        const shade = Math.floor(60 + 120 * edge) + noise;
-        let rr = Math.max(30, Math.min(200, base[0] + (shade - 100)));
-        let gg = Math.max(30, Math.min(200, base[1] + (shade - 100)));
-        let bb = Math.max(30, Math.min(200, base[2] + (shade - 100)));
-        let isWater = false;
-
-        // Oceans first (dark blue), then lakes (medium blue)
-        if (terraform > 0 && state.terraform && state.terraform.oceans) {
-          for (const oc of state.terraform.oceans) {
-            const odx = dx - oc.cx;
-            const ody = dy - oc.cy;
-            const or2 = odx*odx + ody*ody;
-            const or = oc.r * Math.max(0, Math.min(1, (terraform - 0.08) / 0.92));
-            if (or2 <= or * or) {
-              const blue = [20, 70, 160];
-              const n2 = Math.floor(randRange(-8, 6));
-              rr = Math.max(0, Math.min(255, blue[0] + n2));
-              gg = Math.max(0, Math.min(255, blue[1] + n2));
-              bb = Math.max(0, Math.min(255, blue[2] + n2));
-              isWater = true;
-              break;
-            }
-          }
-        }
-        if (!isWater && terraform > 0 && state.terraform && state.terraform.lakes) {
-          for (const lake of state.terraform.lakes) {
-            const ldx = dx - lake.cx;
-            const ldy = dy - lake.cy;
-            const lr2 = ldx*ldx + ldy*ldy;
-            const lr = lake.r * Math.max(0, Math.min(1, (terraform - 0.10) / 0.90));
-            if (lr2 <= lr * lr) {
-              const blue = [40, 110, 200];
-              const n2 = Math.floor(randRange(-8, 8));
-              rr = Math.max(0, Math.min(255, blue[0] + n2));
-              gg = Math.max(0, Math.min(255, blue[1] + n2));
-              bb = Math.max(0, Math.min(255, blue[2] + n2));
-              isWater = true;
-              break;
-            }
-          }
-        }
-
-        // Grass greening overlay
-        if (terraform > 0 && !isWater) {
-          const grass = [60, 180, 90];
-          const grow = Math.max(0, Math.min(1, terraform));
-          // more greening near the surface first
-          const surf = Math.max(0, Math.min(1, (q - 0.4) / 0.6));
-          const w = grow * (0.4 + 0.6 * surf);
-          rr = (rr * (1 - w) + grass[0] * w) | 0;
-          gg = (gg * (1 - w) + grass[1] * w) | 0;
-          bb = (bb * (1 - w) + grass[2] * w) | 0;
-        }
-
-        ctx.fillStyle = `rgb(${rr},${gg},${bb})`;
-        ctx.fillRect(rx, ry, 1, 1);
-      }
-    }
-  }
-
-  // Vines and leaves overlays after base pixels
-  if (terraform > 0 && state.terraform) {
-    const progress = terraform;
-    // vines: draw along arcs inside the surface, extend with progress
-    if (state.terraform.vines) {
-      ctx.fillStyle = '#3cbf6a';
-      for (const vine of state.terraform.vines) {
-        const span = vine.maxSpan * progress;
-        const steps = Math.ceil(40 * progress);
-        for (let i = 0; i < steps; i++) {
-          const t = i / Math.max(1, steps - 1);
-          const ang = vine.start + span * t;
-          const radius = p.radius - 2 - 2 * Math.sin(t * Math.PI * 1.5 + vine.wiggle);
-          const px = Math.round(p.pos.x + Math.cos(ang) * radius);
-          const py = Math.round(p.pos.y + Math.sin(ang) * radius);
-          ctx.fillRect(px, py, 1, 1);
-          if (progress > 0.6 && (i % 6 === 0)) {
-            // little offshoots
-            const offR = radius - 1;
-            const offX = Math.round(p.pos.x + Math.cos(ang + 0.25) * offR);
-            const offY = Math.round(p.pos.y + Math.sin(ang + 0.25) * offR);
-            ctx.fillRect(offX, offY, 1, 1);
-          }
-        }
-      }
-    }
-    // leaves: small clusters growing outward
-    if (state.terraform.leaves) {
-      const stemColor = '#63df83';
-      const leafColor = '#96ffae';
-      for (const leaf of state.terraform.leaves) {
-        const len = 2 + Math.floor(1 * progress); // 2-3 px length (less protrusion)
-        const ang = leaf.ang;
-        const nx = Math.cos(ang + Math.PI / 2);
-        const ny = Math.sin(ang + Math.PI / 2);
-        for (let j = 0; j < len; j++) {
-          const rEdge = p.radius - 1 + Math.min(j, 1); // cap outward growth
-          const cx = p.pos.x + Math.cos(ang) * rEdge;
-          const cy = p.pos.y + Math.sin(ang) * rEdge;
-          // stem pixel
-          ctx.fillStyle = stemColor;
-          ctx.fillRect(Math.round(cx), Math.round(cy), 1, 1);
-          // wider leaf lobes (left/right of stem) to exaggerate shape
-          const spread = (j === 0 ? 1 : 2);
-          ctx.fillStyle = leafColor;
-          const lx1 = Math.round(cx + nx * spread);
-          const ly1 = Math.round(cy + ny * spread);
-          const lx2 = Math.round(cx - nx * spread);
-          const ly2 = Math.round(cy - ny * spread);
-          ctx.fillRect(lx1, ly1, 1, 1);
-          ctx.fillRect(lx2, ly2, 1, 1);
-        }
-      }
-    }
-  }
-
-  // Atmospheric glow when terraforming progresses (tight to surface, bright, pulsing + strobing)
-  if (terraform > 0.2 && p === PLANET_B) {
-    const baseAlpha = 0.42 * terraform; // static brightness; brighter atmosphere
-    const haloWidth = 5;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const maxR = p.radius + haloWidth;
-    for (let dy = -maxR; dy <= maxR; dy++) {
-      for (let dx = -maxR; dx <= maxR; dx++) {
+  // Base: if a custom image is provided for PLANET_B, draw it instead of procedural pixels
+  if (p === PLANET_B && planetBImgReady && planetBImg) {
+    const d = Math.max(2, Math.floor(2 * p.radius));
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(planetBImg, 0, 0, planetBImg.width, planetBImg.height, Math.floor(x - d/2), Math.floor(y - d/2), d, d);
+  } else {
+    // Procedural base rocky body
+    for (let dy = -p.radius; dy <= p.radius; dy++) {
+      for (let dx = -p.radius; dx <= p.radius; dx++) {
+        const rx = x + dx;
+        const ry = y + dy;
         const r2 = dx*dx + dy*dy;
-        if (r2 <= p.radius * p.radius) continue;
-        const r = Math.sqrt(r2);
-        if (r > maxR) continue;
-        const w = (r - p.radius) / haloWidth; // 0 at surface -> 1 at edge
-        const a = baseAlpha * Math.max(0, 1 - w);
-        if (a <= 0.01) continue;
-        ctx.fillStyle = `rgba(140,210,255,${a})`;
-        ctx.fillRect(p.pos.x + dx, p.pos.y + dy, 1, 1);
+        if (r2 <= p.radius * p.radius) {
+          const r = Math.sqrt(r2);
+          const q = r / p.radius;
+          const edge = Math.max(0, Math.min(1, (p.radius - r) / p.radius));
+          const base = [100, 110, 100];
+          const noise = Math.floor(randRange(-18, 18));
+          const shade = Math.floor(60 + 120 * edge) + noise;
+          let rr = Math.max(30, Math.min(200, base[0] + (shade - 100)));
+          let gg = Math.max(30, Math.min(200, base[1] + (shade - 100)));
+          let bb = Math.max(30, Math.min(200, base[2] + (shade - 100)));
+          ctx.fillStyle = `rgb(${rr},${gg},${bb})`;
+          ctx.fillRect(rx, ry, 1, 1);
+        }
       }
     }
-    ctx.restore();
   }
+
+  // Reveal terraformed image in pieces instead of vines/atmosphere
+  if (p === PLANET_B && terraform > 0 && state.terraform && planetBGreenReady && planetBGreenImg) {
+    const progress = terraform;
+    const cols = state.terraform.cols;
+    const rows = state.terraform.rows;
+    const d = Math.max(2, Math.floor(2 * p.radius));
+    // Use exact fractional partition so tiles cover full destination without gaps
+    const elapsed = state.timeMs - state.terraform.startedAt;
+    // Determine how many pieces to reveal based on elapsed time and jittered order
+    const revealMs = 2000; // ~2s total
+    const cutoff = elapsed;
+    const srcW = planetBGreenImg.width;
+    const srcH = planetBGreenImg.height;
+    for (let idx = 0; idx < state.terraform.revealPieces.length; idx++) {
+      const piece = state.terraform.revealPieces[idx];
+      const appearAt = piece.order * (revealMs / (cols * rows)) + piece.jitter;
+      if (cutoff >= appearAt) {
+        const sx0 = Math.floor(srcW * (piece.i) / cols);
+        const sx1 = Math.floor(srcW * (piece.i + 1) / cols);
+        const sy0 = Math.floor(srcH * (piece.j) / rows);
+        const sy1 = Math.floor(srcH * (piece.j + 1) / rows);
+        const sw = Math.max(1, sx1 - sx0);
+        const sh = Math.max(1, sy1 - sy0);
+
+        const dx0 = Math.floor(x - d/2) + Math.floor(d * (piece.i) / cols);
+        const dx1 = Math.floor(x - d/2) + Math.floor(d * (piece.i + 1) / cols);
+        const dy0 = Math.floor(y - d/2) + Math.floor(d * (piece.j) / rows);
+        const dy1 = Math.floor(y - d/2) + Math.floor(d * (piece.j + 1) / rows);
+        const dw = Math.max(1, dx1 - dx0);
+        const dh = Math.max(1, dy1 - dy0);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(planetBGreenImg, sx0, sy0, sw, sh, dx0, dy0, dw, dh);
+      }
+    }
+  }
+
+  // Atmosphere halo removed for destination planet
 }
 
 function drawSun(p) {
+  // Draw a planet (image if provided) with a red halo
   const { x, y } = p.pos;
-  const t = (state.timeMs || 0) / 1000;
-  const pulse = 0.85 + 0.15 * Math.sin(t * 2.6);
-  
-  // Draw pixel halo behind the sun with smooth falloff (7px width)
-  {
-    const tms = (state.timeMs || 0);
-    const pulseSlow = 0.5 + 0.5 * Math.sin(tms * 0.006);
-    const strobeFast = 0.5 + 0.5 * Math.sin(tms * 0.03);
-    const baseA = (0.26 + 0.14 * pulseSlow) * (0.85 + 0.15 * strobeFast);
-    const haloWidth = 7;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const maxR = p.radius + haloWidth;
-    for (let dy = -maxR; dy <= maxR; dy++) {
-      for (let dx = -maxR; dx <= maxR; dx++) {
-        const r2 = dx*dx + dy*dy;
-        if (r2 <= p.radius * p.radius) continue;
-        const r = Math.sqrt(r2);
-        if (r > maxR) continue;
-        const w = (r - p.radius) / haloWidth; // 0 at surface -> 1 at edge
-        const a = baseA * Math.max(0, 1 - w);
-        if (a <= 0.01) continue;
-        ctx.fillStyle = `rgba(255,205,90,${a})`;
-        ctx.fillRect(x + dx, y + dy, 1, 1);
-      }
-    }
-    ctx.restore();
-  }
 
-  // Draw the sun body on top of the halo so the inner edge is crisp
-  for (let dy = -p.radius; dy <= p.radius; dy++) {
-    for (let dx = -p.radius; dx <= p.radius; dx++) {
-      const rx = x + dx;
-      const ry = y + dy;
-      const r2 = dx*dx + dy*dy;
-      if (r2 <= p.radius * p.radius) {
-        const r = Math.sqrt(r2);
-        const q = r / p.radius;
-        // blend from bright yellow (center) to orange (edge)
-        const center = [255, 240, 120];
-        const edge = [255, 160, 60];
-        const noise = randRange(-10, 10);
-        const rr = Math.max(0, Math.min(255, (center[0]*(1-q) + edge[0]*q) + noise));
-        const gg = Math.max(0, Math.min(255, (center[1]*(1-q) + edge[1]*q) + noise));
-        const bb = Math.max(0, Math.min(255, (center[2]*(1-q) + edge[2]*q) + noise));
-        ctx.fillStyle = `rgb(${rr|0},${gg|0},${bb|0})`;
-        ctx.fillRect(rx, ry, 1, 1);
+  // Halo removed for main planet
+
+  if (planetImgReady && planetImg) {
+    const d = Math.max(2, Math.floor(2 * p.radius));
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(planetImg, 0, 0, planetImg.width, planetImg.height, Math.floor(x - d/2), Math.floor(y - d/2), d, d);
+  } else {
+    // Fallback: simple rocky planet without lava/smoke
+    for (let dy = -p.radius; dy <= p.radius; dy++) {
+      for (let dx = -p.radius; dx <= p.radius; dx++) {
+        const rx = x + dx;
+        const ry = y + dy;
+        const r2 = dx*dx + dy*dy;
+        if (r2 <= p.radius * p.radius) {
+          const r = Math.sqrt(r2);
+          const edge = Math.max(0, Math.min(1, (p.radius - r) / p.radius));
+          let rr = 70 + Math.floor(60 * edge + randRange(-10, 10));
+          let gg = 60 + Math.floor(55 * edge + randRange(-10, 10));
+          let bb = 65 + Math.floor(50 * edge + randRange(-10, 10));
+          ctx.fillStyle = `rgb(${rr},${gg},${bb})`;
+          ctx.fillRect(rx, ry, 1, 1);
+        }
       }
     }
   }
@@ -456,17 +349,17 @@ const seed = {
   radius: 2,
 };
 
-// Initialize circular-ish orbit around planet A
-(function initOrbit() {
-  // v = sqrt(G*M/r)
-  const dx = seed.pos.x - PLANET_A.pos.x;
-  const dy = seed.pos.y - PLANET_A.pos.y;
-  const r = Math.hypot(dx, dy);
-  const v = Math.sqrt(G * PLANET_A.mass / r) * 0.95; // slightly under for stability
-  // perpendicular velocity (counter-clockwise)
-  seed.vel.x = 0;
-  seed.vel.y = -v;
-})();
+// Compute original start state (position and velocity) away from the planet
+function computeOriginalStart() {
+  const startPos = { x: PLANET_A.pos.x + PLANET_A.radius + 24, y: PLANET_A.pos.y };
+  const dx0 = startPos.x - PLANET_A.pos.x;
+  const dy0 = startPos.y - PLANET_A.pos.y;
+  const r0 = Math.hypot(dx0, dy0);
+  const v0 = Math.sqrt(G * PLANET_A.mass / r0) * 0.95;
+  const startVel = { x: 0, y: -v0 };
+  return { startPos, startVel };
+}
+const ORIG = computeOriginalStart();
 
 // Input: thrust along velocity
 let thrustCooldown = 0;
@@ -558,17 +451,13 @@ function restart() {
   state.timeMs = 0;
   state.unboundMs = 0;
   state.terraform = null; // clear any previous terraforming state
-  seed.pos.x = PLANET_A.pos.x + PLANET_A.radius + 24;
-  seed.pos.y = PLANET_A.pos.y;
-  const dx = seed.pos.x - PLANET_A.pos.x;
-  const dy = seed.pos.y - PLANET_A.pos.y;
-  const r = Math.hypot(dx, dy);
-  const v = Math.sqrt(G * PLANET_A.mass / r) * 0.95;
-  seed.vel.x = 0;
-  seed.vel.y = -v;
+  // Restore original starting position and velocity
+  seed.pos.x = ORIG.startPos.x;
+  seed.pos.y = ORIG.startPos.y;
+  seed.vel.x = ORIG.startVel.x;
+  seed.vel.y = ORIG.startVel.y;
   banner.textContent = '';
   actionBtn.style.display = 'none';
-  startBtn.style.display = 'none';
   winBanner.style.display = 'none';
   startHint.style.display = 'none';
 }
@@ -673,9 +562,51 @@ function frame(now) {
   ctx.save();
   ctx.setTransform(viewScale, 0, 0, viewScale, viewOffsetX, viewOffsetY);
   ctx.imageSmoothingEnabled = false;
+  // Pre-start orbit animation when in start phase
+  if (state.phase === 'start') {
+    // Animate seed orbiting CCW from planet surface to original start
+    const totalMs = 1800; // ~1.8s animation
+    const t = Math.max(0, Math.min(1, state.timeMs / totalMs));
+    const ease = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; // ease-in-out
+    // Start at bottom of planet, rotate CCW to the right side while radius grows linearly
+    const angStart = Math.PI / 2; // bottom
+    const angEnd = 0;             // right side after sweeping 90° (as requested)
+    const ang = angStart + (angEnd - angStart) * ease;
+    const rStart = PLANET_A.radius + 1;
+    const rEnd = Math.hypot(ORIG.startPos.x - PLANET_A.pos.x, ORIG.startPos.y - PLANET_A.pos.y);
+    const radius = rStart + (rEnd - rStart) * ease;
+    const px = PLANET_A.pos.x + Math.cos(ang) * radius;
+    const py = PLANET_A.pos.y + Math.sin(ang) * radius;
+    // Draw glowly growing seed
+    const size = Math.max(1, Math.floor(1 + 3 * ease));
+    // Halo glow
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(255,240,160,0.25)';
+    for (let r = 1; r <= 4; r++) {
+      ctx.fillRect(Math.floor(px - r), Math.floor(py), r*2+1, 1);
+      ctx.fillRect(Math.floor(px), Math.floor(py - r), 1, r*2+1);
+    }
+    ctx.restore();
+    // Core seed
+    ctx.fillStyle = '#fff9a8';
+    for (let dy = -size; dy <= size; dy++) {
+      for (let dx = -size; dx <= size; dx++) {
+        if (dx*dx + dy*dy <= size*size) ctx.fillRect(Math.floor(px + dx), Math.floor(py + dy), 1, 1);
+      }
+    }
+    // When finished, show Start button and the brief hint
+    if (t >= 1) {
+      startBtn.style.display = 'block';
+      startHint.style.display = 'block';
+      setTimeout(() => { startHint.style.display = 'none'; }, 2000);
+    }
+  }
   drawPlanets();
   drawThrustTails();
-  drawSeed();
+  if (state.phase !== 'start') {
+    drawSeed();
+  }
   ctx.restore();
   // HUD removed
 
@@ -736,12 +667,23 @@ function drawThrustTails() {
 
 // Terraforming system for Planet B
 function beginTerraform(p) {
+  // Initialize piecewise reveal of planet-b-green image instead of animated vines/atmosphere
+  const pieces = [];
+  const cols = 8, rows = 8; // 64 pieces to reveal
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const order = i + j * cols;
+      const jitter = Math.floor(hash01(i, j) * 800); // up to 0.8s jitter per piece
+      pieces.push({ i, j, order, jitter });
+    }
+  }
+  // Shuffle slightly by order + jitter
+  pieces.sort((a, b) => (a.order + a.jitter) - (b.order + b.jitter));
   state.terraform = {
     startedAt: state.timeMs,
-    oceans: generateOceans(p),
-    lakes: generateLakes(p),
-    vines: generateVines(p),
-    leaves: generateLeaves(p),
+    revealPieces: pieces,
+    cols,
+    rows,
   };
 }
 

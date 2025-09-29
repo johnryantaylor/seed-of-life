@@ -22,6 +22,53 @@ canvas#game {
   height: 100dvh;
 }
 
+/* Start page elements */
+canvas#start {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+  width: 100dvw;
+  height: 100dvh;
+}
+
+#startTitle {
+  position: fixed;
+  left: 50%;
+  top: 30%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  text-align: center;
+  font-family: 'Press Start 2P', ui-monospace, monospace;
+  font-size: clamp(20px, 8vmin, 64px);
+  text-shadow: 0 0 2px #fff;
+}
+
+#startSubtitle {
+  position: fixed;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  color: #9cf;
+  text-align: center;
+  font-family: 'Press Start 2P', ui-monospace, monospace;
+  font-size: clamp(12px, 3.5vmin, 28px);
+}
+
+#enterBtn {
+  position: fixed;
+  left: 50%;
+  top: 60%;
+  transform: translate(-50%, -50%);
+  background: #1e8f3f;
+  color: #fff;
+  border: 1px solid #2bb34f;
+  border-radius: 10px;
+  padding: clamp(10px, 1.4vmin, 16px) clamp(14px, 2.2vmin, 24px);
+  font-family: 'Press Start 2P', ui-monospace, monospace;
+  font-size: clamp(14px, 2.2vmin, 24px);
+  cursor: pointer;
+}
+
 /* HUD removed */
 
 #banner {
