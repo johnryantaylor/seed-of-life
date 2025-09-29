@@ -187,7 +187,7 @@ button:hover {
 #startBtn {
   position: fixed;
   left: 50%;
-  top: calc(50% + 40px);
+  top: calc(50% + 120px);
   transform: translate(-50%, -50%) scale(1);
   transform-origin: center;
   width: clamp(180px, 36vmin, 320px);
@@ -204,7 +204,7 @@ button:hover {
 #startHint {
   position: fixed;
   left: 50%;
-  top: calc(50% + 90px);
+  top: calc(50% + 40px);
   transform: translateX(-50%);
   color: #9cf;
   font-size: clamp(12px, 2vmin, 18px);

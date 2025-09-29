@@ -173,13 +173,14 @@ const PLANET_B = { pos: { x: 230, y: 90 }, mass: 2200, radius: 9, gScale: 0.5 };
 // Starfield pre-render to offscreen for performance
 const stars = (() => {
   const off = document.createElement('canvas');
-  off.width = DESIGN_WIDTH;
-  off.height = DESIGN_HEIGHT;
+  // Render at 2x resolution so stars appear half-size when scaled to screen
+  off.width = DESIGN_WIDTH * 2;
+  off.height = DESIGN_HEIGHT * 2;
   const sctx = off.getContext('2d');
   sctx.imageSmoothingEnabled = false;
   sctx.fillStyle = '#000';
   sctx.fillRect(0, 0, off.width, off.height);
-  for (let i = 0; i < 300; i++) {
+  for (let i = 0; i < 1200; i++) {
     const x = Math.floor(Math.random() * off.width);
     const y = Math.floor(Math.random() * off.height);
     const c = Math.random() < 0.85 ? 200 + Math.floor(Math.random() * 55) : 80 + Math.floor(Math.random() * 120);
@@ -346,7 +347,7 @@ function drawSun(p) {
 const seed = {
   pos: { x: PLANET_A.pos.x + PLANET_A.radius + 24, y: PLANET_A.pos.y },
   vel: { x: 0, y: 0 },
-  radius: 2,
+  radius: 1,
 };
 
 // Compute original start state (position and velocity) away from the planet
@@ -577,22 +578,23 @@ function frame(now) {
     const radius = rStart + (rEnd - rStart) * ease;
     const px = PLANET_A.pos.x + Math.cos(ang) * radius;
     const py = PLANET_A.pos.y + Math.sin(ang) * radius;
-    // Draw glowly growing seed
-    const size = Math.max(1, Math.floor(1 + 3 * ease));
+    // Draw glowly growing seed: core stays 1px, glow grows with ease
+    const coreSize = 1;
+    const glowRings = Math.max(1, Math.floor(1 + 3 * ease));
     // Halo glow
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.fillStyle = 'rgba(255,240,160,0.25)';
-    for (let r = 1; r <= 4; r++) {
+    for (let r = 1; r <= glowRings; r++) {
       ctx.fillRect(Math.floor(px - r), Math.floor(py), r*2+1, 1);
       ctx.fillRect(Math.floor(px), Math.floor(py - r), 1, r*2+1);
     }
     ctx.restore();
     // Core seed
     ctx.fillStyle = '#fff9a8';
-    for (let dy = -size; dy <= size; dy++) {
-      for (let dx = -size; dx <= size; dx++) {
-        if (dx*dx + dy*dy <= size*size) ctx.fillRect(Math.floor(px + dx), Math.floor(py + dy), 1, 1);
+    for (let dy = -coreSize; dy <= coreSize; dy++) {
+      for (let dx = -coreSize; dx <= coreSize; dx++) {
+        if (dx*dx + dy*dy <= coreSize*coreSize) ctx.fillRect(Math.floor(px + dx), Math.floor(py + dy), 1, 1);
       }
     }
     // When finished, show Start button and the brief hint
@@ -616,7 +618,7 @@ requestAnimationFrame(frame);
 
 // Thrust tail effect
 function spawnThrustTail(/* x, y, dx, dy (ignored) */) {
-  const len = 25; // base length in pixels (75% longer)
+  const len = 12; // shorter to match smaller seed
   const now = state.timeMs;
   thrustTails.push({ createdAt: now, lifeMs: 500, len });
 }
@@ -649,7 +651,7 @@ function drawThrustTails() {
       const px = baseX - ux * s;
       const py = baseY - uy * s;
       // width tapers to a point away from seed
-      const baseWidth = 6; // thickness near seed
+    const baseWidth = 3; // half thickness to match smaller seed
       const w = Math.max(1, Math.floor(baseWidth * (1 - tfrac)));
       const half = Math.floor(w / 2);
       const localAlpha = 0.8 * a * (1 - tfrac); // twice as bright
